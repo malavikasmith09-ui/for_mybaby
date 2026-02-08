@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE NEXUS | PRIVATE ACCESS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@700&family=Inter:wght@300;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root { --accent: #00f2ff; --pink: #ff3e6c; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Inter', sans-serif; color: white; }
+        #canvas-container { position: absolute; width: 100%; height: 100%; z-index: 1; }
+        
+        /* High-Tech HUD */
+        .hud {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 30px; box-sizing: border-box;
+        }
+        .header { display: flex; justify-content: space-between; font-family: 'Syncopate'; font-size: 10px; letter-spacing: 4px; opacity: 0.6; }
+        
+        /* The Vault Card */
+        #vault {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9);
+            width: 85%; max-width: 450px; background: rgba(0,0,0,0.95);
+            border: 1px solid var(--accent); backdrop-filter: blur(25px);
+            padding: 40px; display: none; z-index: 100; text-align: center;
+            box-shadow: 0 0 50px rgba(0, 242, 255, 0.3);
+            border-radius: 20px;
+        }
+
+        #scanner {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-family: 'Syncopate'; font-size: 14px; color: var(--accent);
+            display: none; z-index: 99; letter-spacing: 5px;
+        }
+
+        h1 { font-family: 'Syncopate'; font-size: 1.1rem; margin-bottom: 15px; color: var(--accent); letter-spacing: 2px; }
+        p { line-height: 1.8; opacity: 0.8; font-size: 0.95rem; }
+        
+        .btn {
+            margin-top: 25px; padding: 12px 30px; background: var(--accent); 
+            border: none; color: black; cursor: pointer; font-weight: bold;
+            font-family: 'Syncopate'; font-size: 10px; transition: 0.3s;
+            border-radius: 5px; text-decoration: none; display: inline-block;
+        }
+        .btn:hover { background: white; transform: scale(1.05); }
+
+        .art-container { font-size: 70px; margin-bottom: 20px; filter: drop-shadow(0 0 10px var(--accent)); }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="scanner">ACCESSING DATA...</div>
+    
+    <div class="hud">
+        <div class="header"><span>USER: AUTHENTICATED</span><span>MEMORIES_INDEX: 5</span></div>
+        <div style="text-align: center; font-size: 9px; letter-spacing: 5px; opacity: 0.4;">SCROLL TO NAVIGATE • CLICK NODES</div>
+    </div>
+
+    <div id="vault">
+        <div id="art-box" class="art-container"></div>
+        <h1 id="v-title"></h1>
+        <p id="v-text"></p>
+        <div id="action-area"></div>
+        <div style="margin-top: 20px; font-size: 9px; opacity: 0.5; cursor: pointer;" onclick="closeVault()">[ CLOSE_TERMINAL ]</div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, stars, planets = [];
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // --- YOUR REQUESTED ORDER ---
+        const memories = [
+            { title: "01. FIRST TALK", text: "You made your first move on 30th sept 2023 even though we didnt talk much that day, you texted me again on 3rd Nov 2023 with heyoo trip engne inday", symbol: "💬", color: 0x00f2ff },
+            { title: "02. WE STARTED DATING", text: "The day everything became official-02/02/2024. The start of my favorite never-ending chapter. ", symbol: "📅", color: 0xff3e6c },
+            { title: "03. OUR FIRST KISS", text: "Everything around me froze when we shared our first kiss(19/02/2024). I still remember how shy you were. This was also the day where we first hugged each other ", symbol: "💋", color: 0xff758f },
+            { title: "04. BEST DAY OUT", text: "For me, our best day out would be the day we spent at fort kochi together, you made me so happy. i love you soo much.", symbol: "🎡", color: 0x00ff77 },
+            { title: "05. OUR SONG", text: " Click below to open our song on Spotify.", symbol: "🎵", color: 0xffffff, isMusic: true, link: "https://open.spotify.com/track/34gCuhDGsG4bRPIf9bb02f?si=2a6c107a4de04c25" }
+        ];
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Background Universe
+            const geo = new THREE.BufferGeometry();
+            const pos = [];
+            for(let i=0; i<12000; i++) { pos.push((Math.random()-0.5)*1500, (Math.random()-0.5)*1500, (Math.random()-0.5)*3000); }
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            stars = new THREE.Points(geo, new THREE.PointsMaterial({color: 0xffffff, size: 0.6}));
+            scene.add(stars);
+
+            // Memory Planets
+            memories.forEach((m, i) => {
+                const group = new THREE.Group();
+                const obj = new THREE.Mesh(new THREE.IcosahedronGeometry(14, 0), new THREE.MeshBasicMaterial({ color: m.color, wireframe: true }));
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(20, 0.3, 16, 100), new THREE.MeshBasicMaterial({ color: m.color, transparent: true, opacity: 0.2 }));
+                group.add(obj, ring);
+                group.position.set((Math.random()-0.5)*60, (Math.random()-0.5)*60, -i*600 - 400);
+                group.userData = m;
+                planets.push(group);
+                scene.add(group);
+            });
+            camera.position.z = 100;
+        }
+
+        window.addEventListener('wheel', (e) => {
+            gsap.to(camera.position, { z: camera.position.z - e.deltaY * 0.9, duration: 1.5, ease: "power2.out"});
+        });
+
+        window.addEventListener('click', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(planets.map(p => p.children[0]));
+            if(intersects.length > 0) scanAndOpen(intersects[0].object.parent.userData);
+        });
+
+        function scanAndOpen(data) {
+            const scanner = document.getElementById('scanner');
+            scanner.style.display = 'block';
+            gsap.fromTo(scanner, { opacity: 0 }, { opacity: 1, repeat: 3, yoyo: true, duration: 0.2, onComplete: () => {
+                scanner.style.display = 'none';
+                openVault(data);
+            }});
+        }
+
+        function openVault(data) {
+            const v = document.getElementById('vault');
+            document.getElementById('v-title').innerText = data.title;
+            document.getElementById('v-text').innerText = data.text;
+            document.getElementById('art-box').innerText = data.symbol;
+            
+            const actionArea = document.getElementById('action-area');
+            actionArea.innerHTML = data.isMusic ? `<a href="${data.link}" target="_blank" class="btn">OPEN IN SPOTIFY</a>` : "";
+
+            v.style.display = 'block';
+            gsap.to(v, { opacity: 1, scale: 1, duration: 0.4, ease: "power3.out" });
+        }
+
+        function closeVault() {
+            gsap.to("#vault", { opacity: 0, scale: 0.9, duration: 0.3, onComplete: () => document.getElementById('vault').style.display='none'});
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            stars.rotation.z += 0.0003;
+            planets.forEach(p => { p.rotation.y += 0.008; p.rotation.z += 0.003; });
+            renderer.render(scene, camera);
+        }
+
+        init(); animate();
+    </script>
+</body>
+</html>
